@@ -1,6 +1,10 @@
 import os
+import ctypes
+from ctypes import wintypes
+import tkinter as tk
+from tkinter import ttk
 import matplotlib.pyplot as plt
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
@@ -17,6 +21,186 @@ def get_font(path, size):
     except Exception:
         return ImageFont.load_default()
 
+user32 = ctypes.windll.user32
+gdi32 = ctypes.windll.gdi32
+
+class BITMAPINFOHEADER(ctypes.Structure):
+    _fields_ = [
+        ('biSize', wintypes.DWORD),
+        ('biWidth', wintypes.LONG),
+        ('biHeight', wintypes.LONG),
+        ('biPlanes', wintypes.WORD),
+        ('biBitCount', wintypes.WORD),
+        ('biCompression', wintypes.DWORD),
+        ('biSizeImage', wintypes.DWORD),
+        ('biXPelsPerMeter', wintypes.LONG),
+        ('biYPelsPerMeter', wintypes.LONG),
+        ('biClrUsed', wintypes.DWORD),
+        ('biClrImportant', wintypes.DWORD),
+    ]
+
+# -------------------------------------------------------------
+# REAL WINDOW CAPTURE VIA PRINTWINDOW
+# -------------------------------------------------------------
+def capture_real_tk_window(btn_text, status_text, link_val, proxy_checked=True, auto_checked=True):
+    root = tk.Tk()
+    root.title("Xray Lite")
+    root.resizable(False, False)
+
+    icon_path = os.path.join(PROJECT_DIR, "icon.ico")
+    if os.path.exists(icon_path):
+        try:
+            root.iconbitmap(icon_path)
+        except Exception:
+            pass
+
+    f = ttk.Frame(root, padding=12)
+    f.pack()
+    ttk.Label(f, text="vless:// link").grid(sticky="w")
+    e = ttk.Entry(f, width=46, show="\u2022")
+    e.insert(0, link_val)
+    e.grid(pady=4)
+    cb1 = ttk.Checkbutton(f, text="Set Windows system proxy")
+    cb1.state(['selected'] if proxy_checked else ['!selected'])
+    cb1.grid(sticky="w")
+    cb2 = ttk.Checkbutton(f, text="Auto-connect on launch (starts in tray)")
+    cb2.state(['selected'] if auto_checked else ['!selected'])
+    cb2.grid(sticky="w")
+    btn = ttk.Button(f, text=btn_text)
+    btn.grid(pady=8, sticky="we")
+    lbl = ttk.Label(f, text=status_text)
+    lbl.grid()
+
+    root.update()
+
+    frame_str = root.wm_frame()
+    frame_id = int(frame_str, 16) if frame_str.startswith('0x') else int(frame_str)
+
+    rect = wintypes.RECT()
+    user32.GetWindowRect(frame_id, ctypes.byref(rect))
+    w = rect.right - rect.left
+    h = rect.bottom - rect.top
+
+    hdc_src = user32.GetWindowDC(frame_id)
+    hdc_mem = gdi32.CreateCompatibleDC(hdc_src)
+    hbmp = gdi32.CreateCompatibleBitmap(hdc_src, w, h)
+    gdi32.SelectObject(hdc_mem, hbmp)
+
+    user32.PrintWindow(frame_id, hdc_mem, 2)
+
+    bmi = BITMAPINFOHEADER()
+    bmi.biSize = ctypes.sizeof(BITMAPINFOHEADER)
+    bmi.biWidth = w
+    bmi.biHeight = -h
+    bmi.biPlanes = 1
+    bmi.biBitCount = 32
+    bmi.biCompression = 0
+
+    buf = ctypes.create_string_buffer(w * h * 4)
+    gdi32.GetDIBits(hdc_mem, hbmp, 0, h, buf, ctypes.byref(bmi), 0)
+
+    im = Image.frombuffer('RGBA', (w, h), buf, 'raw', 'BGRA', 0, 1).copy()
+
+    gdi32.DeleteObject(hbmp)
+    gdi32.DeleteDC(hdc_mem)
+    user32.ReleaseDC(frame_id, hdc_src)
+    root.destroy()
+    return im
+
+def make_shadowed_card(win_img):
+    pad = 12
+    cw, ch = win_img.width + pad * 2, win_img.height + pad * 2
+    card = Image.new('RGBA', (cw, ch), (0, 0, 0, 0))
+    shadow = Image.new('RGBA', (cw, ch), (0, 0, 0, 0))
+    s_draw = ImageDraw.Draw(shadow)
+    s_draw.rectangle([pad - 3, pad - 1, pad + win_img.width + 3, pad + win_img.height + 5], fill=(0, 0, 0, 150))
+    shadow = shadow.filter(ImageFilter.GaussianBlur(6))
+    card.paste(shadow, (0, 0), shadow)
+    b_draw = ImageDraw.Draw(card)
+    b_draw.rectangle([pad - 1, pad - 1, pad + win_img.width, pad + win_img.height], outline='#475569', width=1)
+    card.paste(win_img, (pad, pad))
+    return card
+
+
+# -------------------------------------------------------------
+# 1. REALISTIC APP PREVIEW: app_ui_preview.png
+# -------------------------------------------------------------
+def generate_app_preview():
+    im_conn = capture_real_tk_window(
+        btn_text="Disconnect",
+        status_text="Connected  (SOCKS 20808 / HTTP 20809)",
+        link_val="vless://dda7c00b-2aff-455f-bd92-d3aac014a198@server.com:443?security=reality",
+        proxy_checked=True,
+        auto_checked=True
+    )
+    im_disconn = capture_real_tk_window(
+        btn_text="Connect",
+        status_text="Disconnected",
+        link_val="vless://dda7c00b-2aff-455f-bd92-d3aac014a198@server.com:443?security=reality",
+        proxy_checked=True,
+        auto_checked=False
+    )
+
+    card_conn = make_shadowed_card(im_conn)
+    card_disconn = make_shadowed_card(im_disconn)
+
+    cw, ch = 840, 390
+    canvas = Image.new('RGBA', (cw, ch), '#0d1117')
+    draw = ImageDraw.Draw(canvas)
+    draw.rounded_rectangle([2, 2, cw - 3, ch - 3], radius=10, outline='#30363d', width=1)
+
+    font_title = get_font(FONT_BOLD, 12)
+    font_badge = get_font(FONT_BOLD, 10)
+    font_small = get_font(FONT_REG, 11)
+    font_menu_bold = get_font(FONT_BOLD, 12)
+    font_menu = get_font(FONT_REG, 12)
+
+    # State badges
+    # Connected badge
+    draw.rounded_rectangle([45, 18, 205, 40], radius=4, fill='#064e3b', outline='#059669', width=1)
+    draw.ellipse([55, 25, 63, 33], fill='#10b981')
+    draw.text((70, 22), 'CONNECTED STATE', fill='#34d399', font=font_badge)
+
+    # Disconnected badge
+    draw.rounded_rectangle([435, 18, 615, 40], radius=4, fill='#1e293b', outline='#475569', width=1)
+    draw.ellipse([445, 25, 453, 33], fill='#94a3b8')
+    draw.text((460, 22), 'DISCONNECTED STATE', fill='#cbd5e1', font=font_badge)
+
+    # Paste windows
+    canvas.paste(card_conn, (35, 46), card_conn)
+    canvas.paste(card_disconn, (425, 46), card_disconn)
+
+    # Bottom Tray status bar
+    by = ch - 72
+    draw.rounded_rectangle([35, by, cw - 35, ch - 16], radius=6, fill='#161b22', outline='#30363d', width=1)
+
+    # Real tray icon
+    tray_img = Image.new("RGBA", (64, 64), (0, 0, 0, 0))
+    d_ti = ImageDraw.Draw(tray_img)
+    d_ti.ellipse((4, 4, 60, 60), fill=(34, 197, 94))
+    d_ti.polygon([(35, 10), (20, 36), (31, 36), (28, 54), (44, 26), (33, 26)], fill="white")
+    icon_resized = tray_img.resize((28, 28), Image.Resampling.LANCZOS)
+    canvas.paste(icon_resized, (52, by + 14), icon_resized)
+
+    draw.text((92, by + 12), 'Windows System Tray Integration', fill='#f0f6fc', font=font_title)
+    draw.text((92, by + 30), 'Minimizes silently to tray with memory trimming (EmptyWorkingSet to ~4.1 MB). Right-click for menu.', fill='#8b949e', font=font_small)
+
+    # Context menu simulation
+    mx, my, mw, mh = cw - 250, by - 65, 175, 84
+    draw.rounded_rectangle([mx - 2, my - 2, mx + mw + 2, my + mh + 2], radius=6, fill='#1e293b', outline='#475569', width=1)
+    draw.rounded_rectangle([mx, my, mx + mw, my + 27], radius=4, fill='#334155')
+    draw.text((mx + 14, my + 5), 'Show', fill='#ffffff', font=font_menu_bold)
+    draw.text((mx + 14, my + 31), 'Disconnect', fill='#e2e8f0', font=font_menu)
+    draw.text((mx + 14, my + 57), 'Quit', fill='#f87171', font=font_menu)
+
+    prev_path = os.path.join(ASSETS_DIR, "app_ui_preview.png")
+    canvas.save(prev_path, quality=95)
+    print(f"Generated {prev_path}")
+
+
+# -------------------------------------------------------------
+# 2. BENCHMARK CHART: memory_comparison_chart.png
+# -------------------------------------------------------------
 def generate_benchmark_chart():
     fig, ax = plt.subplots(figsize=(10, 5.2), dpi=300)
     fig.patch.set_facecolor('#0d1117')
@@ -38,11 +222,11 @@ def generate_benchmark_chart():
 
     for i, (bar, val) in enumerate(zip(bars, memory_mb)):
         w = bar.get_width()
-        if i == len(apps) - 1:  # Xray Lite Minimized
+        if i == len(apps) - 1:
             badge = f" {val:.1f} MB  (-91% LESS RAM vs NetMod)"
             text_color = '#34d399'
             weight = 'bold'
-        elif i == len(apps) - 2:  # Xray Lite Active
+        elif i == len(apps) - 2:
             badge = f" {val:.1f} MB  (-88% LESS RAM)"
             text_color = '#6ee7b7'
             weight = 'bold'
@@ -80,6 +264,10 @@ def generate_benchmark_chart():
     plt.close()
     print(f"Generated {chart_path}")
 
+
+# -------------------------------------------------------------
+# 3. TASK MANAGER SCREENSHOT: taskmanager_comparison.png
+# -------------------------------------------------------------
 def generate_taskmanager_screenshot():
     w, h = 1040, 620
     im = Image.new("RGBA", (w, h), "#1e1e1e")
@@ -92,15 +280,12 @@ def generate_taskmanager_screenshot():
     font_small = get_font(FONT_REG, 11)
     font_badge = get_font(FONT_BOLD, 11)
 
-    # Header bar
     d.rectangle([0, 0, w, 44], fill="#252525")
     d.text((20, 12), "Task Manager", fill="#ffffff", font=font_title)
 
-    # Search bar in header
     d.rounded_rectangle([220, 7, 560, 37], radius=4, fill="#181818", outline="#3a3a3a")
     d.text((235, 12), "Type a name, publisher, or PID to search", fill="#888888", font=font_small)
 
-    # Left sidebar icons strip
     d.rectangle([0, 44, 48, h], fill="#202020")
     icons = ["≡", "M", "T", "S", "U", "D", "C"]
     for i, ic in enumerate(icons):
@@ -109,7 +294,6 @@ def generate_taskmanager_screenshot():
             d.rounded_rectangle([6, y - 2, 42, y + 26], radius=4, fill="#0078d4")
         d.text((18, y), ic, fill="#ffffff" if i == 0 else "#aaaaaa", font=font_row_bold)
 
-    # Content area starts at x=48
     cx = 48
     d.rectangle([cx, 44, w, 78], fill="#292929", outline="#333333")
     cols = [
@@ -174,7 +358,6 @@ def generate_taskmanager_screenshot():
 
         curr_y += row_h + 8
 
-    # Callout badge at bottom
     d.rounded_rectangle([cx + 20, h - 110, w - 30, h - 25], radius=8, fill="#0f291e", outline="#059669", width=2)
     d.text((cx + 40, h - 98), "VERIFIED RESOURCE BENCHMARK SUMMARY:", fill="#34d399", font=font_badge)
     d.text((cx + 40, h - 75), 
@@ -188,88 +371,8 @@ def generate_taskmanager_screenshot():
     im.save(tm_path, quality=95)
     print(f"Generated {tm_path}")
 
-def generate_app_preview():
-    w, h = 760, 480
-    im = Image.new("RGBA", (w, h), "#0f172a")
-    d = ImageDraw.Draw(im)
-
-    font_title = get_font(FONT_BOLD, 13)
-    font_lbl = get_font(FONT_SEMIBOLD, 12)
-    font_body = get_font(FONT_REG, 12)
-    font_status = get_font(FONT_BOLD, 12)
-    font_btn = get_font(FONT_BOLD, 13)
-    font_small = get_font(FONT_REG, 11)
-
-    wx, wy, ww, wh = 160, 45, 440, 275
-    d.rounded_rectangle([wx - 6, wy - 6, wx + ww + 6, wy + wh + 6], radius=14, fill="#090d16")
-    d.rounded_rectangle([wx, wy, wx + ww, wy + wh], radius=10, fill="#1e293b", outline="#334155", width=1)
-
-    # Window titlebar
-    d.rounded_rectangle([wx, wy, wx + ww, wy + 32], radius=10, fill="#0f172a")
-    d.rectangle([wx, wy + 20, wx + ww, wy + 32], fill="#0f172a")
-    d.ellipse([wx + 12, wy + 10, wx + 24, wy + 22], fill="#10b981")
-    d.text((wx + 32, wy + 7), "Xray Lite", fill="#e2e8f0", font=font_title)
-    d.text((wx + ww - 65, wy + 6), "_   []   X", fill="#94a3b8", font=font_body)
-
-    # Inside Form
-    fy = wy + 48
-    d.text((wx + 20, fy), "vless:// link", fill="#cbd5e1", font=font_lbl)
-
-    # Input Box
-    fy += 22
-    d.rounded_rectangle([wx + 20, fy, wx + ww - 20, fy + 32], radius=5, fill="#0f172a", outline="#475569")
-    masked_link = "•" * 44
-    d.text((wx + 30, fy + 6), masked_link, fill="#94a3b8", font=font_body)
-
-    # Checkboxes
-    fy += 44
-    d.rounded_rectangle([wx + 22, fy, wx + 36, fy + 14], radius=3, fill="#10b981")
-    d.text((wx + 25, fy - 2), "v", fill="#ffffff", font=font_lbl)
-    d.text((wx + 44, fy - 1), "Set Windows system proxy", fill="#e2e8f0", font=font_body)
-
-    fy += 24
-    d.rounded_rectangle([wx + 22, fy, wx + 36, fy + 14], radius=3, fill="#10b981")
-    d.text((wx + 25, fy - 2), "v", fill="#ffffff", font=font_lbl)
-    d.text((wx + 44, fy - 1), "Auto-connect on launch (starts in tray)", fill="#e2e8f0", font=font_body)
-
-    # Button
-    fy += 32
-    d.rounded_rectangle([wx + 20, fy, wx + ww - 20, fy + 36], radius=6, fill="#059669")
-    d.text((wx + ww // 2 - 38, fy + 8), "Disconnect", fill="#ffffff", font=font_btn)
-
-    # Status Label
-    fy += 46
-    d.ellipse([wx + 65, fy + 4, wx + 75, fy + 14], fill="#10b981")
-    d.text((wx + 84, fy + 1), "Connected  (SOCKS 20808 / HTTP 20809)", fill="#34d399", font=font_status)
-
-    # System Tray Simulation at bottom
-    ty = h - 75
-    d.rectangle([0, ty, w, h], fill="#020617")
-    d.line([0, ty, w, ty], fill="#1e293b", width=1)
-
-    d.text((40, ty + 24), "[Win]  [Search]  [Files]  [Browser]", fill="#64748b", font=font_small)
-
-    tray_box_x = w - 240
-    d.rounded_rectangle([tray_box_x, ty + 12, w - 20, ty + 56], radius=6, fill="#0f172a", outline="#334155")
-    d.text((tray_box_x + 15, ty + 22), "(Vol)  (WiFi)", fill="#94a3b8", font=font_small)
-    
-    icon_x = tray_box_x + 90
-    d.ellipse([icon_x, ty + 20, icon_x + 24, ty + 44], fill="#22c55e")
-    d.polygon([(icon_x + 13, ty + 23), (icon_x + 8, ty + 32), (icon_x + 12, ty + 32), 
-               (icon_x + 11, ty + 40), (icon_x + 17, ty + 29), (icon_x + 13, ty + 29)], fill="#ffffff")
-
-    d.text((tray_box_x + 135, ty + 24), "12:00 PM", fill="#cbd5e1", font=font_small)
-
-    tt_x, tt_y = icon_x - 45, ty - 38
-    d.rounded_rectangle([tt_x, tt_y, tt_x + 140, tt_y + 28], radius=4, fill="#1e293b", outline="#475569")
-    d.polygon([(icon_x + 8, tt_y + 28), (icon_x + 16, tt_y + 28), (icon_x + 12, tt_y + 34)], fill="#1e293b")
-    d.text((tt_x + 10, tt_y + 6), "Xray Lite - Connected", fill="#ffffff", font=font_small)
-
-    prev_path = os.path.join(ASSETS_DIR, "app_ui_preview.png")
-    im.save(prev_path, quality=95)
-    print(f"Generated {prev_path}")
 
 if __name__ == "__main__":
+    generate_app_preview()
     generate_benchmark_chart()
     generate_taskmanager_screenshot()
-    generate_app_preview()

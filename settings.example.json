@@ -1,0 +1,4 @@
+{
+  "link": "vless://00000000-0000-0000-0000-000000000000@example-server.com:443?security=reality&type=tcp&fp=chrome&sni=www.microsoft.com&pbk=YOUR_PUBLIC_KEY&sid=YOUR_SHORT_ID&spx=%2F#ExampleServer",
+  "auto": false
+}

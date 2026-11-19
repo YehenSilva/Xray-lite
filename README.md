@@ -4,15 +4,16 @@
 
 **The ultra-lightweight, zero-bloat Windows front-end for [Xray-core](https://github.com/XTLS/Xray-core) (VLESS + Reality over TCP).**
 
-[![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](https://github.com/)
+[![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%7C%2011-0078D6?logo=windows&logoColor=white)](https://github.com/YehenSilva/Xray-lite)
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![License: MPL 2.0](https://img.shields.io/badge/License-MPL%202.0-blue.svg)](LICENSE)
 [![Memory Footprint](https://img.shields.io/badge/RAM%20Footprint-%7E22%20MB%20Total-success?logo=speedtest&logoColor=white)](assets/memory_comparison_chart.png)
 [![Idle CPU](https://img.shields.io/badge/Idle%20CPU-0.0%25-brightgreen)](assets/taskmanager_comparison.png)
-[![Bloatware](https://img.shields.io/badge/Bloatware%20%26%20Ads-0%25-green)](https://github.com/)
+[![Bloatware](https://img.shields.io/badge/Bloatware%20%26%20Ads-0%25-green)](https://github.com/YehenSilva/Xray-lite)
 
 <p align="center">
   <a href="#-why-xray-lite-the-problem-with-netmod--incy">Why Xray Lite?</a> •
+  <a href="#-interface-overview">Interface Overview</a> •
   <a href="#-resource-benchmarks">Resource Benchmarks</a> •
   <a href="#-features">Features</a> •
   <a href="#-quick-start">Quick Start</a> •
@@ -26,16 +27,27 @@
 
 ---
 
+## 🖥️ Interface Overview
+
+Xray Lite provides a clean, native Windows Tkinter interface with zero unnecessary graphics rendering overhead:
+
+* **Connected State (Active)**: Displays active connection status, listening ports (SOCKS5 `20808` / HTTP `20809`), and one-click disconnection.
+* **Disconnected State (Ready)**: Stores your connection URI securely in `settings.json` and supports instant one-click connection.
+* **Windows System Tray Integration**: Minimizes silently to the Windows notification tray with an active status icon (`Green` = Connected, `Grey` = Disconnected) and context menu (`Show`, `Disconnect`, `Quit`).
+* **Instant Memory Trim**: Automatically trims working set memory pages down to **~4.1 MB** whenever minimized to the tray.
+
+---
+
 ## 🧐 Why Xray Lite? (The Problem with NetMod & INCY)
 
-Most modern proxy clients have become bloated, sluggish resource hogs. If you've used clients like **NetMod (NetMod Syna)**, **INCY**, or heavy Electron/Chromium-based wrappers, you have probably noticed your laptop fans spinning and memory being eaten up:
+Most modern proxy clients have become bloated, sluggish resource hogs. If you've used clients like **NetMod (NetMod Syna)**, **INCY**, or heavy Electron/Chromium-based wrappers, you have probably noticed high memory usage, background clutter, and battery drain:
 
 * 🐢 **NetMod (NetMod Syna)**:
-  * Packed with a heavy .NET runtime and legacy background services.
+  * Packed with a heavy .NET runtime and persistent background services.
   * Consistently drains **150 MB – 260 MB+ of RAM** just idling in the background.
-  * Often spikes CPU usage during handshakes and connection keep-alives.
-  * Lacks active memory-trimming routines—it hoards allocated memory even when hidden in the tray.
-  * Loaded with ads, donation banners, and confusing UI menus.
+  * Spikes CPU usage during connection handshakes and ping loops.
+  * Lacks active memory-trimming routines—it hoards allocated memory even when hidden in the system tray.
+  * Contains ads, donation banners, and complex, confusing menus.
 
 * 📦 **INCY & Electron Clients (v2rayN / Mihomo Party / Clash Verge)**:
   * Run entire multi-process Chromium rendering engines and NodeJS runtimes merely to toggle a proxy switch.
@@ -44,10 +56,10 @@ Most modern proxy clients have become bloated, sluggish resource hogs. If you've
 
 ### 💡 The Solution: Xray Lite
 **Xray Lite was engineered from the ground up for maximum performance and zero overhead:**
-1. **Total Combined Footprint: ~22 MB**: The entire application (GUI + backend `xray.exe`) runs in less than **25 MB RAM total**—over **90% less memory** than NetMod or INCY.
-2. **0.0% Idle CPU**: Pure event-driven native Win32 system tray loop.
-3. **Instant Launch (<0.4s)**: No Electron startup delay, no .NET JIT initialization delay.
-4. **Zero Bloat & Zero Telemetry**: Clean Python standard library GUI, no ads, no trackers, no extraneous background processes.
+1. **Total Combined Footprint: ~22.3 MB**: The entire application (native GUI + backend `xray.exe`) runs in less than **25 MB RAM total**—over **90% less memory** than NetMod or INCY.
+2. **0.0% Idle CPU**: Pure event-driven native Win32 system tray loop with no background polling spikes.
+3. **Instant Launch (< 0.4s)**: No Electron startup delay, no .NET JIT initialization delay.
+4. **Zero Bloat & Zero Telemetry**: Clean native GUI, no ads, no trackers, no extraneous background daemons.
 
 ---
 
@@ -66,7 +78,7 @@ Verified on Windows 11 x64 under active VLESS + Reality traffic:
 
 | Metric | ⚡ **Xray Lite** (This App) | 📱 **INCY Client** | ⚙️ **NetMod Syna** | 🖥️ **v2rayN (.NET)** | 🌐 **Electron Clients** |
 |:---|:---:|:---:|:---:|:---:|:---:|
-| **RAM (Minimized to Tray)** | **~22.3 MB** *(4 MB GUI + 18 MB Core)* | ~188.4 MB | ~245.8 MB | ~164.2 MB | ~385.0 MB |
+| **RAM (Minimized to Tray)** | **~22.3 MB** *(4.1 MB GUI + 18.2 MB Core)* | ~188.4 MB | ~245.8 MB | ~164.2 MB | ~385.0 MB |
 | **RAM (Active Window)** | **~29.5 MB** | ~210.0 MB | ~260.0 MB | ~195.0 MB | ~410.0 MB |
 | **Idle CPU Usage** | **0.0%** | 0.8% – 1.5% | 1.2% – 2.5% | 0.4% – 1.0% | 1.5% – 3.2% |
 | **Cold Startup Time** | **< 0.4 seconds** | 3.5 – 6.0 s | 4.0 – 7.0 s | 2.5 – 4.5 s | 5.0 – 9.0 s |
@@ -99,7 +111,7 @@ Xray Lite achieves its ultra-compact memory footprint through two intentional lo
        env=dict(os.environ, GOGC="50")  # tighter Go GC -> less RAM
    )
    ```
-   By default, Go runtimes hoard memory heap until footprint doubles (`GOGC=100`). Setting `GOGC=50` commands the Go runtime inside `xray.exe` to trigger garbage collection twice as aggressively, keeping core engine RAM down to **~18 MB**.
+   By default, Go runtimes hoard memory heap until footprint doubles (`GOGC=100`). Setting `GOGC=50` commands the Go runtime inside `xray.exe` to trigger garbage collection twice as aggressively, keeping core engine RAM down to **~18.2 MB**.
 
 ---
 
@@ -122,7 +134,7 @@ Xray Lite achieves its ultra-compact memory footprint through two intentional lo
 
 ### Option 1: Use Pre-Built Binary (Recommended)
 
-1. Download `XrayLite.exe` from the [Releases](https://github.com/) page.
+1. Download `XrayLite.exe` from the [Releases](https://github.com/YehenSilva/Xray-lite/releases) page.
 2. Download official `xray.exe` from the [XTLS/Xray-core releases](https://github.com/XTLS/Xray-core/releases) (or extract from your existing Xray folder).
 3. Place `xray.exe` in the same directory as `XrayLite.exe`:
    ```text
@@ -146,8 +158,8 @@ Xray Lite achieves its ultra-compact memory footprint through two intentional lo
 #### Installation Steps
 ```bash
 # 1. Clone repository
-git clone https://github.com/your-username/xray-lite.git
-cd xray-lite
+git clone https://github.com/YehenSilva/Xray-lite.git
+cd Xray-lite
 
 # 2. Create virtual environment
 python -m venv .venv

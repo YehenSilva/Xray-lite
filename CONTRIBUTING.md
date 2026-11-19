@@ -8,8 +8,8 @@ Our primary design philosophy is **extreme minimalism and low resource usage**. 
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/your-username/xray-lite.git
-   cd xray-lite
+   git clone https://github.com/YehenSilva/Xray-lite.git
+   cd Xray-lite
    ```
 
 2. Set up Python (3.10+ recommended):
